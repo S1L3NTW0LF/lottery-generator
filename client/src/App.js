@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Dice from './Dice';
+import './App.css';
 
 function App() {
   const [numbers, setNumbers] = useState([]);
@@ -9,23 +10,26 @@ function App() {
   const [topRecent, setTopRecent] = useState([]);
   const [topCommon, setTopCommon] = useState([]);
   const [generating, setGenerating] = useState(false);
+  const [serverError, setServerError] = useState(false);
+  const [drawCount, setDrawCount] = useState(0);
 
   const generateNumbers = async () => {
     setGenerating(true);
-    setNumbers([]); // clear previous so balls reset
+    setNumbers([]);
+    setServerError(false);
     try {
       const response = await fetch('http://localhost:5000/api/generate');
       const data = await response.json();
-      // Small pause so balls visibly reset to '?' before rolling
       setTimeout(() => {
         setNumbers(data.numbers);
         setHot(data.hot);
         setCold(data.cold);
         setTopCommon(data.topCommon);
         setGenerating(false);
+        setDrawCount(c => c + 1);
       }, 150);
     } catch (err) {
-      alert('Could not connect to server. Make sure the server is running on port 5000.');
+      setServerError(true);
       setGenerating(false);
     }
   };
@@ -37,7 +41,7 @@ function App() {
       setHot(data.hot);
       setCold(data.cold);
     } catch (err) {
-      console.error('Could not load stats:', err);
+      setServerError(true);
     }
   };
 
@@ -58,75 +62,159 @@ function App() {
   }, []);
 
   const getBallColor = (num) => {
-    if (hot.includes(num)) return '#e74c3c';  // red for hot
-    if (cold.includes(num)) return '#3498db'; // blue for cold
-    return '#2ecc71';                          // green for random
+    if (hot.includes(num)) return 'hot';
+    if (cold.includes(num)) return 'cold';
+    return 'neutral';
   };
 
-  // Each ball starts rolling 400ms after the previous one
   const getDelay = (index) => index * 400;
 
   return (
-    <div style={{ textAlign: 'center', marginTop: '50px' }}>
-      <h1>🎲 Michigan Lotto 47 Generator</h1>
+    <div className="app-wrapper">
+      {/* Ambient background orbs */}
+      <div className="bg-orb orb-1" />
+      <div className="bg-orb orb-2" />
+      <div className="bg-orb orb-3" />
 
-      <button
-        onClick={generateNumbers}
-        disabled={generating}
-        style={{ fontSize: '16px', padding: '10px 24px', cursor: generating ? 'not-allowed' : 'pointer' }}
-      >
-        {generating ? 'Drawing...' : 'Generate Numbers'}
-      </button>
+      <div className="app-container">
 
-      <div style={{ marginTop: '40px' }}>
-        <strong style={{ fontSize: '20px' }}>Your Draw:</strong>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '20px', minHeight: '70px' }}>
-          {numbers.length > 0
-            ? numbers.map((num, index) => (
-                <Dice
-                  key={`${num}-${index}`}
-                  finalNumber={num}
-                  delay={getDelay(index)}
-                  color={getBallColor(num)}
-                  isCommon={topCommon.includes(num)}
-                />
-              ))
-            : Array.from({ length: 6 }).map((_, index) => (
-                <Dice
-                  key={`empty-${index}`}
-                  finalNumber={null}
-                  delay={0}
-                  color="#888"
-                  isCommon={false}
-                />
-              ))
-          }
+        {/* Header */}
+        <header className="app-header">
+          <div className="header-eyebrow">Michigan</div>
+          <h1 className="app-title">LOTTO<span className="title-accent">47</span></h1>
+          <p className="app-subtitle">Statistical Number Generator</p>
+          {drawCount > 0 && (
+            <div className="draw-badge">Draw #{drawCount}</div>
+          )}
+        </header>
+
+        {/* Server error banner */}
+        {serverError && (
+          <div className="error-banner">
+            ⚠️ Cannot connect to server — make sure it's running on port 5000
+          </div>
+        )}
+
+        {/* Main draw area */}
+        <section className="draw-section">
+          <div className="draw-card">
+            <div className="draw-label">YOUR NUMBERS</div>
+            <div className="balls-row">
+              {numbers.length > 0
+                ? numbers.map((num, index) => (
+                    <Dice
+                      key={`${num}-${index}-${drawCount}`}
+                      finalNumber={num}
+                      delay={getDelay(index)}
+                      colorType={getBallColor(num)}
+                      isCommon={topCommon.includes(num)}
+                    />
+                  ))
+                : Array.from({ length: 6 }).map((_, index) => (
+                    <Dice
+                      key={`empty-${index}`}
+                      finalNumber={null}
+                      delay={0}
+                      colorType="empty"
+                      isCommon={false}
+                    />
+                  ))
+              }
+            </div>
+
+            <button
+              className={`generate-btn ${generating ? 'generating' : ''}`}
+              onClick={generateNumbers}
+              disabled={generating}
+            >
+              <span className="btn-icon">{generating ? '⟳' : '✦'}</span>
+              <span>{generating ? 'Drawing Numbers...' : 'Generate My Numbers'}</span>
+            </button>
+          </div>
+        </section>
+
+        {/* Legend */}
+        <div className="legend">
+          <div className="legend-item">
+            <span className="legend-dot dot-hot" />
+            <span>Hot — 4+ recent draws</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-dot dot-cold" />
+            <span>Cold — no recent draws</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-dot dot-neutral" />
+            <span>Random pick</span>
+          </div>
+          <div className="legend-item">
+            <span className="legend-star">★</span>
+            <span>Top 6 all-time</span>
+          </div>
         </div>
-      </div>
 
-      {/* Legend */}
-      <div style={{ marginTop: '24px', fontSize: '14px', display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
-        <span><span style={{ color: '#e74c3c' }}>🔴</span> Hot (4+ recent appearances)</span>
-        <span><span style={{ color: '#3498db' }}>🔵</span> Cold (0 recent appearances)</span>
-        <span><span style={{ color: '#2ecc71' }}>🟢</span> Random pick</span>
-        <span>⭐ Top 6 most common overall</span>
-      </div>
+        {/* Stats grid */}
+        <section className="stats-grid">
+          <div className="stat-card hot-card">
+            <div className="stat-card-header">
+              <span className="stat-icon">🔥</span>
+              <h3>Hot Numbers</h3>
+              <span className="stat-subtitle">4+ in last 16 draws</span>
+            </div>
+            <div className="stat-numbers">
+              {hot.length > 0
+                ? hot.map(n => <span key={n} className="stat-pill pill-hot">{n}</span>)
+                : <span className="stat-empty">None right now</span>
+              }
+            </div>
+          </div>
 
-      {/* Stats */}
-      <div style={{ marginTop: '40px' }}>
-        <h2>🔥 Hot Numbers (4+ appearances in last 16 draws)</h2>
-        <p>{hot.join(', ') || 'None'}</p>
+          <div className="stat-card cold-card">
+            <div className="stat-card-header">
+              <span className="stat-icon">❄️</span>
+              <h3>Cold Numbers</h3>
+              <span className="stat-subtitle">0 in last 16 draws</span>
+            </div>
+            <div className="stat-numbers">
+              {cold.length > 0
+                ? cold.map(n => <span key={n} className="stat-pill pill-cold">{n}</span>)
+                : <span className="stat-empty">None right now</span>
+              }
+            </div>
+          </div>
 
-        <h2>❄️ Cold Numbers (0 appearances in last 16 draws)</h2>
-        <p>{cold.join(', ') || 'None'}</p>
-      </div>
+          <div className="stat-card freq-card">
+            <div className="stat-card-header">
+              <span className="stat-icon">📈</span>
+              <h3>Most Common</h3>
+              <span className="stat-subtitle">Last 16 draws</span>
+            </div>
+            <div className="stat-numbers">
+              {topRecent.length > 0
+                ? topRecent.map(n => <span key={n} className="stat-pill pill-neutral">{n}</span>)
+                : <span className="stat-empty">Loading...</span>
+              }
+            </div>
+          </div>
 
-      <div style={{ marginTop: '20px' }}>
-        <h2>📊 Most Common (Last 16 Draws)</h2>
-        <p>{topRecent.join(', ') || 'None'}</p>
+          <div className="stat-card alltime-card">
+            <div className="stat-card-header">
+              <span className="stat-icon">🏆</span>
+              <h3>All-Time Leaders</h3>
+              <span className="stat-subtitle">Full history</span>
+            </div>
+            <div className="stat-numbers">
+              {topAll.length > 0
+                ? topAll.map(n => <span key={n} className="stat-pill pill-gold">{n}</span>)
+                : <span className="stat-empty">Loading...</span>
+              }
+            </div>
+          </div>
+        </section>
 
-        <h2>📊 Most Common (All Time)</h2>
-        <p>{topAll.join(', ') || 'None'}</p>
+        <footer className="app-footer">
+          For entertainment purposes only · Michigan Lotto 47
+        </footer>
       </div>
     </div>
   );
